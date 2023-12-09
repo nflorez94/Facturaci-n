@@ -16,8 +16,7 @@ namespace Facturación.Migrations
                 name: "Factura",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Id = table.Column<string>(nullable: false), // Cambiado a string y eliminada la anotación de generación de valor
                     ClienteId = table.Column<int>(type: "integer", nullable: false),
                     Fecha = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Nombre = table.Column<string>(type: "text", nullable: false),
@@ -30,6 +29,7 @@ namespace Facturación.Migrations
                     table.PrimaryKey("PK_Factura", x => x.Id);
                 });
         }
+
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)

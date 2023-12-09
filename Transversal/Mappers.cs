@@ -8,7 +8,7 @@ namespace Facturación.Transversal
     {
         public Mappers()
         {
-            CreateMap<Factura, FacturaDto>();
+            CreateMap<Factura, FacturaDto>().ReverseMap();
         }
     }
 }

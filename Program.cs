@@ -1,10 +1,10 @@
+using System.Collections.Concurrent;
 using AutoMapper;
 using Facturación.Infrastructure.Contexts;
 using Facturación.Models.Dtos;
 using Facturación.Models.Entities;
 using Facturación.Transversal;
 using Microsoft.EntityFrameworkCore;
-using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,40 +27,73 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 //if (app.Environment.IsDevelopment())
 //{
-    app.UseSwagger();
-    app.UseSwaggerUI();
+app.UseSwagger();
+app.UseSwaggerUI();
 //}
 
 app.UseHttpsRedirection();
 
-app.MapPost("/Factura", async (Factura factura, FacturacionContext context, IMapper mapper) =>
+
+var queue = new ConcurrentQueue<FacturaDto>();
+var processingTask = StartProcessingQueue(queue, app.Services);
+
+app.MapPost("/Factura", (FacturaDto factura) =>
 {
-    var stopwatch = new Stopwatch();
-    stopwatch.Start(); // Start timing
+    var newId = Guid.NewGuid();
+    factura.Id = newId.ToString();
+    queue.Enqueue(factura);
 
-    var facturaDto = mapper.Map<FacturaDto>(factura);
+    return Results.Ok(newId);
+});
 
-    // Save Factura to the database
-    await context.AddAsync(factura);
-    await context.SaveChangesAsync();
+async Task StartProcessingQueue(ConcurrentQueue<FacturaDto> queue, IServiceProvider services)
+{
+    while (true)
+    {
+        if (queue.TryDequeue(out FacturaDto facturaToSave))
+        {
+            using var scope = services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<FacturacionContext>();
+            var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
+            await CreateFactura(facturaToSave, Guid.NewGuid(), context, mapper);
+        }
+        else
+        {
+            await Task.Delay(1000); // Reduce CPU usage when queue is empty
+        }
+    }
+}
 
-    // Optionally, update the DTO with any entity changes (like generated Id)
-    mapper.Map(factura, facturaDto);
+async Task CreateFactura(FacturaDto factura, Guid newId, FacturacionContext context, IMapper mapper)
+{
+    const int maxRetries = 3;
+    int currentRetry = 0;
+    Random random = new Random();
 
-    stopwatch.Stop(); // Stop timing
+    while (currentRetry < maxRetries)
+    {
+        try
+        {
+            var facturaEntity = mapper.Map<Factura>(factura);
+            facturaEntity.Id = newId.ToString();
+            context.Facturas.Add(facturaEntity);
+            await context.SaveChangesAsync();
+            break;
+        }
+        catch (Exception ex)
+        {
+            currentRetry++;
+            if (currentRetry >= maxRetries)
+            {
+                // Log the error
+                break;
+            }
 
-    var elapsedMilliseconds = stopwatch.ElapsedMilliseconds; // This is the total time in milliseconds
-
-    // You can use elapsedMilliseconds as needed, for example, logging it
-    Console.WriteLine($"Request took {elapsedMilliseconds} ms");
-
-    factura.TimeCompletion=elapsedMilliseconds;
-    context.Update(factura);
-    await context.SaveChangesAsync();
-
-    return facturaDto; // Return the ID from the DTO
-})
-.WithOpenApi();
+            int delay = random.Next(10, 51) * 1000;
+            await Task.Delay(delay);
+        }
+    }
+}
 
 app.MapGet("/Factura", async (FacturacionContext context, IMapper mapper) =>
 {
@@ -73,16 +106,4 @@ app.MapDelete("/Factura", async (FacturacionContext context, IMapper mapper) =>
     await context.Facturas.ExecuteDeleteAsync();
 })
 .WithOpenApi();
-
-app.MapGet("/FacturaPromedio", async (FacturacionContext context) =>
-{
-    // Assuming TimeCompletion is a nullable type. If it's non-nullable, adjust accordingly.
-    var averageTimeCompletion = await context.Facturas
-                                    .Where(f => f.TimeCompletion.HasValue)
-                                    .AverageAsync(f => f.TimeCompletion.Value);
-
-    return Results.Ok(averageTimeCompletion.ToString()+" milisegundos");
-})
-.WithOpenApi();
-
 app.Run();

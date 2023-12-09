@@ -17,10 +17,6 @@ namespace Facturación.Infrastructure.Contexts
             modelBuilder.Entity<Factura>()
                 .ToTable(nameof(Factura))
                 .HasKey(f => f.Id);
-
-            modelBuilder.Entity<Factura>()
-                .Property(f => f.Id)
-                .ValueGeneratedOnAdd();
         }
     }
 }
