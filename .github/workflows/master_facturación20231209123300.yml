@@ -54,4 +54,4 @@ jobs:
           app-name: 'Facturación20231209123300'
           slot-name: 'Production'
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_CFEC573E21D5450EA41AEE2DEE6B1ACE }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_76DF70138C9640C4BF6E4E5BE4AB11D9 }}
